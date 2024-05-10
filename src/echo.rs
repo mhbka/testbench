@@ -2,7 +2,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use axum::response::IntoResponse;
 
-pub fn router() -> Router {
+pub fn routes() -> Router {
     Router::new().route("/echo", post(echo))
 }
 

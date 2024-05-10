@@ -11,8 +11,9 @@ use axum::{
 async fn main() {
     // build our application with a single route
     let app = Router::new()
-    .merge(echo::router())
-    .merge(login::router())
+    .merge(echo::routes())
+    .merge(login::routes())
+    .merge(login::protected_routes())
     .route("/", get(|| async { "Hello, World!" }));
 
     // run our app with hyper, listening globally on port 3000

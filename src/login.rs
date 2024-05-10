@@ -5,17 +5,21 @@ use crate::auth::{
     Backend,
     Credentials
 };
+use axum_login::login_required;
 use axum_macros::debug_handler;
 
-pub fn router() -> Router {
+type AuthSession = axum_login::AuthSession<Backend>;
+
+pub fn routes() -> Router {
     Router::new()
         .route("/login", post(login))
-        .route("/protected", get(|| async {"Congratz!"}))
 }
 
-
-
-type AuthSession = axum_login::AuthSession<Backend>;
+pub fn protected_routes() -> Router {
+    Router::new()
+        .route("/protected", get(|| async { "Nop" }))
+        .route_layer(login_required!(Backend, login_url = "/login"))
+}
 
 #[debug_handler]
 async fn login(
