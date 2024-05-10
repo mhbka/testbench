@@ -1,29 +1,19 @@
-// Draw and Phase are now typestates of Phase
-trait Phase {}
+pub mod auth;
+pub mod echo;
 
-struct Draw;
-struct Play;
+use axum::{
+    routing::get,
+    Router,
+};
 
-impl Phase for Draw {}
-impl Phase for Play {}
+#[tokio::main]
+async fn main() {
+    // build our application with a single route
+    let app = Router::new()
+    .merge(echo::router())
+    .route("/", get(|| async { "Hello, World!" }));
 
-// testing
-trait GameFamily {
-    type Game<P: Phase>;
-}
-
-trait GameNext<F: GameFamily> {
-    type 
-}
-
-struct Basic<P: Phase> {
-    phase: P
-}
-
-impl<P: Phase> GameFamily for Basic<P> {
-    type Game<Ph: Phase> = Basic<P>;
-}
-
-fn main() {
-
+    // run our app with hyper, listening globally on port 3000
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
