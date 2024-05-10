@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
 use axum_login::{AuthUser, AuthnBackend, UserId};
 
@@ -26,7 +26,7 @@ pub struct Backend {
     users: HashMap<i64, User>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Credentials {
     user_id: i64,
 }

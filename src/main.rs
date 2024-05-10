@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod echo;
+pub mod login;
 
 use axum::{
     routing::get,
@@ -11,6 +12,7 @@ async fn main() {
     // build our application with a single route
     let app = Router::new()
     .merge(echo::router())
+    .merge(login::router())
     .route("/", get(|| async { "Hello, World!" }));
 
     // run our app with hyper, listening globally on port 3000

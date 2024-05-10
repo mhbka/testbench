@@ -5,9 +5,9 @@ use crate::auth::{
     Backend,
     Credentials
 };
+use axum_macros::debug_handler;
 
-
-pub fn login_router() -> Router {
+pub fn router() -> Router {
     Router::new()
         .route("/login", post(login))
         .route("/protected", get(|| async {"Congratz!"}))
@@ -17,6 +17,7 @@ pub fn login_router() -> Router {
 
 type AuthSession = axum_login::AuthSession<Backend>;
 
+#[debug_handler]
 async fn login(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
