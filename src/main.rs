@@ -3,20 +3,17 @@ pub mod echo;
 pub mod login;
 
 use axum::{
-    routing::get,
+    routing::{post, get},
     Router,
 };
 
 #[tokio::main]
 async fn main() {
-    // build our application with a single route
     let app = Router::new()
     .merge(echo::routes())
     .merge(login::routes())
-    .merge(login::protected_routes())
     .route("/", get(|| async { "Hello, World!" }));
 
-    // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

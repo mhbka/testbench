@@ -5,20 +5,31 @@ use crate::auth::{
     Backend,
     Credentials
 };
-use axum_login::login_required;
+use axum_login::{
+    login_required, 
+    tower_sessions::{MemoryStore, SessionManagerLayer}, 
+    AuthManagerLayer, 
+    AuthManagerLayerBuilder
+};
 use axum_macros::debug_handler;
 
 type AuthSession = axum_login::AuthSession<Backend>;
 
 pub fn routes() -> Router {
-    Router::new()
-        .route("/login", post(login))
-}
+    // Session layer.
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store);
 
-pub fn protected_routes() -> Router {
+    // Auth service.
+    let backend = Backend::default();
+    let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
+
     Router::new()
         .route("/protected", get(|| async { "Nop" }))
         .route_layer(login_required!(Backend, login_url = "/login"))
+        .route("/login", post(login))
+        .layer(auth_layer)
+        
 }
 
 #[debug_handler]
@@ -36,5 +47,5 @@ async fn login(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    Redirect::to("/protected").into_response()
+    Redirect::to("/nuts").into_response()
 }
