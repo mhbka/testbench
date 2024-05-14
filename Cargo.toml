@@ -11,4 +11,5 @@ axum = "0.7.5"
 axum-login = "0.15.1"
 axum-macros = "0.4.1"
 serde = "1.0.201"
+sqlx = { version = "0.7.4", features = ["sqlite", "time", "runtime-tokio"] }
 tokio = { version = "1.37.0", features = ["full"] }

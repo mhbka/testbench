@@ -2,19 +2,19 @@ use std::{collections::HashMap, convert::Infallible, sync::{Arc, Mutex}};
 use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
 use axum_login::{AuthUser, AuthnBackend, UserId};
-use axum::http::StatusCode;
+use sqlx::sqlite::SqlitePool;
 
 #[derive(Debug, Clone)]
 pub struct User {
-    id: i64,
-    pw_hash: Vec<u8>,
+    username: String,
+    pw_hash: String,
 }
 
 impl AuthUser for User {
-    type Id = i64;
+    type Id = String;
 
     fn id(&self) -> Self::Id {
-        self.id
+        self.username
     }
 
     fn session_auth_hash(&self) -> &[u8] {
@@ -24,32 +24,35 @@ impl AuthUser for User {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Credentials {
-    pub user_id: i64,
+    pub username: String,
     pub password: String
 }
 
 #[derive(Clone)]
 pub struct Backend {
-    users: Arc<Mutex<HashMap<i64, User>>>
+    db: SqlitePool
 }
 
 impl Backend {
-    pub fn new (users: Arc<Mutex<HashMap<i64, User>>>) -> Self {
-        Self { users }
+    /// Create a new backend with a `SqlitePool`.
+    pub fn new (db: SqlitePool) -> Self {
+        Self { db }
     }
 
     /// Returns the user if successfully registered, and `None` otherwise (ie, if user already exists).
-    pub fn register(&mut self, Credentials {user_id, password}: Credentials)
+    pub async fn register(&mut self, Credentials {username, password}: Credentials)
     -> Result<Option<User>, Infallible> 
     {
-        println!("{user_id}");
-        if self.users.lock().unwrap().get(&user_id).is_some() {
+
+        if self.get_user(&user_id).await?.is_some() {
             Ok(None)
         }
         else {
-            let user = User {id: user_id, pw_hash: password.into_bytes() };
-            self.users.lock().unwrap().insert(user_id, user.clone());
-            println!("{:?}", self.users);
+            let user = User {username, pw_hash: password };
+            sqlx::query(
+                r#"insert into "user" (username, pw_hash) values ($1, $2) returning username"#,
+                username, password
+            )
             Ok(Some(user))
         }   
     }
@@ -61,12 +64,11 @@ impl AuthnBackend for Backend {
     type Credentials = Credentials;
     type Error = Infallible;
 
-    async fn authenticate(&self, Credentials {user_id, password}: Self::Credentials) 
+    async fn authenticate(&self, Credentials {username, password}: Self::Credentials) 
     -> Result<Option<Self::User>, Self::Error> 
     {   
-        println!("{:?}", self.users);
-        if let Some(user) = self.users.lock().unwrap().get(&user_id).cloned() {
-            if password.as_bytes() == user.pw_hash { // hash is actually 1:1 of password string
+        if let Some(user) = self.get_user(&username).await? {
+            if password == user.pw_hash { // hash is actually 1:1 of password string
                 return Ok(Some(user));
             }
             else {
@@ -76,9 +78,15 @@ impl AuthnBackend for Backend {
         Ok(None) // user doesn't exist or password is wrong
     }
 
-    async fn get_user(&self, user_id: &UserId<Self>) 
+    async fn get_user(&self, username: &UserId<Self>) 
     -> Result<Option<Self::User>, Self::Error> 
     {
-        Ok(self.users.lock().unwrap().get(user_id).cloned())
+        sqlx::query_as!(
+            Credentials,
+            r#"select * from "user" where username = $1"#,
+            username
+        )
+            .fetch_optional(self.db)
+            .await?
     }
 }

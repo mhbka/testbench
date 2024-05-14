@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 use axum::{
     http::StatusCode, response::{IntoResponse, Redirect}, routing::{get, post}, Form, Json, Router
 };
+use sqlx::SqlitePool;
 use crate::auth::{
     Backend,
     Credentials
@@ -23,8 +24,8 @@ pub fn routes() -> Router {
     let session_layer = SessionManagerLayer::new(session_store);
 
     // Auth service.
-    let users = Arc::new(Mutex::new(HashMap::new()));
-    let backend = Backend::new(users);
+    let pool = SqlitePool::connect_lazy("sqlite::memory:").unwrap();
+    let backend = Backend::new(pool);
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
     Router::new()
