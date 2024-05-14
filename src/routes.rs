@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::{Arc, Mutex}};
+
 use axum::{
     http::StatusCode, response::{IntoResponse, Redirect}, routing::{get, post}, Form, Json, Router
 };
@@ -9,7 +11,7 @@ use axum_login::{
     login_required, 
     tower_sessions::{MemoryStore, SessionManagerLayer}, 
     AuthManagerLayer, 
-    AuthManagerLayerBuilder
+    AuthManagerLayerBuilder, AuthnBackend
 };
 use axum_macros::debug_handler;
 
@@ -21,15 +23,16 @@ pub fn routes() -> Router {
     let session_layer = SessionManagerLayer::new(session_store);
 
     // Auth service.
-    let backend = Backend::default();
+    let users = Arc::new(Mutex::new(HashMap::new()));
+    let backend = Backend::new(users);
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
     Router::new()
-        .route("/protected", get(|| async { "Nop" }))
+        .route("/protected", get(|| async { "helo" }))
         .route_layer(login_required!(Backend, login_url = "/login"))
         .route("/login", post(login))
+        .route("/register", post(register))
         .layer(auth_layer)
-        
 }
 
 #[debug_handler]
@@ -47,5 +50,22 @@ async fn login(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    Redirect::to("/nuts").into_response()
+    Redirect::to("/protected").into_response()
+}
+
+#[debug_handler]
+async fn register(
+    mut auth_session: AuthSession,
+    Form(creds): Form<Credentials>,
+) -> impl IntoResponse {
+    match auth_session.backend.register(creds) {
+        Ok(Some(user)) => {
+            if auth_session.login(&user).await.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+            return Redirect::to("/protected").into_response();
+        },
+        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }    
 }
