@@ -18,7 +18,7 @@ impl AuthUser for User {
     }
 
     fn session_auth_hash(&self) -> &[u8] {
-        &self.pw_hash
+        &self.pw_hash.into_bytes()
     }
 }
 
@@ -44,15 +44,15 @@ impl Backend {
     -> Result<Option<User>, Infallible> 
     {
 
-        if self.get_user(&user_id).await?.is_some() {
+        if self.get_user(&username).await?.is_some() {
             Ok(None)
         }
         else {
             let user = User {username, pw_hash: password };
-            sqlx::query(
-                r#"insert into "user" (username, pw_hash) values ($1, $2) returning username"#,
+            sqlx::query!(
+                r#"insert into users (username, pw_hash) values ($1, $2)"#,
                 username, password
-            )
+            );
             Ok(Some(user))
         }   
     }
@@ -83,7 +83,7 @@ impl AuthnBackend for Backend {
     {
         sqlx::query_as!(
             Credentials,
-            r#"select * from "user" where username = $1"#,
+            r#"select * from users where username = $1"#,
             username
         )
             .fetch_optional(self.db)

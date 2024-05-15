@@ -18,13 +18,12 @@ use axum_macros::debug_handler;
 
 type AuthSession = axum_login::AuthSession<Backend>;
 
-pub fn routes() -> Router {
+pub fn routes(pool: SqlitePool) -> Router {
     // Session layer.
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store);
 
     // Auth service.
-    let pool = SqlitePool::connect_lazy("sqlite::memory:").unwrap();
     let backend = Backend::new(pool);
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
@@ -59,7 +58,7 @@ async fn register(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
 ) -> impl IntoResponse {
-    match auth_session.backend.register(creds) {
+    match auth_session.backend.register(creds).await {
         Ok(Some(user)) => {
             if auth_session.login(&user).await.is_err() {
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
