@@ -1,20 +1,21 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
-
 use axum::{
-    http::StatusCode, response::{IntoResponse, Redirect}, routing::{get, post}, Form, Json, Router
+    http::StatusCode, 
+    response::{IntoResponse, Redirect}, 
+    routing::{get, post}, 
+    Form, Router
 };
-use sqlx::SqlitePool;
+use axum_login::{
+    login_required, 
+    tower_sessions::{MemoryStore, SessionManagerLayer},
+    AuthManagerLayerBuilder
+};
 use crate::auth::{
     Backend,
     Credentials
 };
-use axum_login::{
-    login_required, 
-    tower_sessions::{MemoryStore, SessionManagerLayer}, 
-    AuthManagerLayer, 
-    AuthManagerLayerBuilder, AuthnBackend
-};
+use tracing::info;
 use axum_macros::debug_handler;
+use sqlx::SqlitePool;
 
 type AuthSession = axum_login::AuthSession<Backend>;
 
@@ -27,6 +28,7 @@ pub fn routes(pool: SqlitePool) -> Router {
     let backend = Backend::new(pool);
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
+    // Return the router
     Router::new()
         .route("/protected", get(|| async { "helo" }))
         .route_layer(login_required!(Backend, login_url = "/login"))
@@ -36,6 +38,7 @@ pub fn routes(pool: SqlitePool) -> Router {
 }
 
 #[debug_handler]
+#[tracing::instrument(skip_all)]
 async fn login(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
@@ -54,6 +57,7 @@ async fn login(
 }
 
 #[debug_handler]
+#[tracing::instrument(skip_all)]
 async fn register(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
@@ -61,11 +65,19 @@ async fn register(
     match auth_session.backend.register(creds).await {
         Ok(Some(user)) => {
             if auth_session.login(&user).await.is_err() {
+                info!("User registered successfully but error occurred");
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
+            info!("User registered successfully");
             return Redirect::to("/protected").into_response();
         },
-        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        Ok(None) => {
+            info!("User already exists");
+            return StatusCode::CONFLICT.into_response()
+        },
+        Err(err) => {
+            info!("Error occurred: {err:?}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }    
 }

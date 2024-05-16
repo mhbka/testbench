@@ -10,7 +10,10 @@ use axum::{
 #[tokio::main]
 async fn main() {
     let pool = db::get_pool().await;
-    
+
+    let tracer = tracing_subscriber::FmtSubscriber::new();
+    tracing::subscriber::set_global_default(tracer).unwrap();
+
     let app = Router::new()
         .merge(routes::routes(pool))
         .route("/", get(|| async { "Hello, World!" }));
