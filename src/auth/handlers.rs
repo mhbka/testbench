@@ -1,45 +1,18 @@
 use axum::{
+    Json,
+    Form,
     http::StatusCode, 
-    response::{IntoResponse, Redirect}, 
-    routing::{get, post}, 
-    Form, Router
-};
-use axum_login::{
-    login_required, 
-    tower_sessions::{MemoryStore, SessionManagerLayer},
-    AuthManagerLayerBuilder
-};
-use crate::auth::{
-    Backend,
-    Credentials
+    response::{IntoResponse, Redirect} 
 };
 use tracing::info;
-use axum_macros::debug_handler;
-use sqlx::SqlitePool;
+use axum_macros::debug_handler; // useful if a handler has a weird error
+use super::types::{Credentials, User};
+use super::backend::Backend;
 
 type AuthSession = axum_login::AuthSession<Backend>;
 
-pub fn routes(pool: SqlitePool) -> Router {
-    // Session layer.
-    let session_store = MemoryStore::default();
-    let session_layer = SessionManagerLayer::new(session_store);
-
-    // Auth service.
-    let backend = Backend::new(pool);
-    let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
-
-    // Return the router
-    Router::new()
-        .route("/protected", get(|| async { "helo" }))
-        .route_layer(login_required!(Backend, login_url = "/login"))
-        .route("/login", post(login))
-        .route("/register", post(register))
-        .layer(auth_layer)
-}
-
-#[debug_handler]
 #[tracing::instrument(skip_all)]
-async fn login(
+pub async fn login(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
 ) -> impl IntoResponse {
@@ -56,9 +29,17 @@ async fn login(
     Redirect::to("/protected").into_response()
 }
 
-#[debug_handler]
 #[tracing::instrument(skip_all)]
-async fn register(
+pub async fn logout(mut auth_session: AuthSession) -> impl IntoResponse {
+    match auth_session.logout().await {
+        Ok(Some(_)) => Redirect::to("/").into_response(),
+        Ok(None) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn register(
     mut auth_session: AuthSession,
     Form(creds): Form<Credentials>,
 ) -> impl IntoResponse {
@@ -80,4 +61,13 @@ async fn register(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }    
+}
+
+#[tracing::instrument(skip_all)]
+#[debug_handler]
+pub async fn whoami(auth_session: AuthSession) -> Result<Json<User>, StatusCode> {
+    match auth_session.user {
+        Some(user) => Ok(Json(user)),
+        None => Err(StatusCode::UNAUTHORIZED)
+    }
 }

@@ -1,33 +1,9 @@
-use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
-use axum_login::{AuthUser, AuthnBackend, UserId};
+use axum_login::{AuthnBackend, UserId};
 use sqlx::sqlite::SqlitePool;
-use sqlx::FromRow;
 use tracing::info;
+use super::types::{Credentials, User};
 
-#[derive(Debug, Clone, FromRow)]
-pub struct User { 
-    username: String,
-    pw_hash: String,
-}
-
-impl AuthUser for User {
-    type Id = String;
-
-    fn id(&self) -> Self::Id {
-        self.username.clone()
-    }
-
-    fn session_auth_hash(&self) -> &[u8] {
-        self.pw_hash.as_bytes()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Credentials {
-    pub username: String,
-    pub password: String
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum BackendError {
